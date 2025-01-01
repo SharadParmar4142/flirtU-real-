@@ -1,0 +1,2 @@
+User Transaction(User controller)::
+   1.Do not check for the wallet balance just update the balance, after getting the amount from the frontend.

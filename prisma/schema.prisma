@@ -1,0 +1,257 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Listener {
+  id            Int      @id @default(autoincrement())
+  name          String  
+  email         String   @unique
+  image         String
+  age           Int
+  language      String
+  favoriteFood  String
+  hobbies       String
+  idols         String
+  sex           Sex
+  about         String
+  device_token  String
+  online_status Boolean  @default(false)
+  busy_status   Boolean  @default(false)
+  ac_delete     Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  wallet        Int      @default(0)
+  leaveAvailable Int @default(4)
+
+  updateProfile adminApprove @default(FALSE)
+  blocked_users User[]   @relation("BlockedUsers")
+  sessions      Transaction[] @relation("ListenerTransactions") // Transaction history as a recipient
+  withdrawTrax  Withdraw[] @relation("ListenerWithdraw")
+  pendingProfile PendingProfile? @relation(fields: [pendingProfileId], references: [id])
+  pendingProfileId Int?
+}
+
+model PendingProfile {
+  id            Int      @id @default(autoincrement())
+  image         String?
+  language      String?
+  favoriteFood  String?
+  hobbies       String?
+  idols         String?
+  about         String?
+  listenerId    Int      @unique
+  listener      Listener @relation(fields: [listenerId], references: [id])
+}
+
+model MissedMeeting {
+  id             Int      @id @default(autoincrement())
+  listenerId     Int
+  scheduledAt    DateTime
+  createdAt      DateTime @default(now())
+  attended       Boolean   @default(false)
+  attendedAt     DateTime?                // Time when the listener joined
+
+  listener       Listener @relation(fields: [listenerId], references: [id])
+  penalties      Penalty[] @relation("MissedMeetingPenalties")
+}
+
+enum PenaltyMode {
+  TRUANCY
+  MISSED_MEETING
+  LEFTCALL
+}
+
+model Penalty {
+  id             Int      @id @default(autoincrement())
+  listenerId     Int
+  penaltyMode    PenaltyMode
+  amount         Float
+  createdAt      DateTime @default(now())
+  listener       Listener @relation(fields: [listenerId], references: [id])
+  missedMeeting  MissedMeeting @relation("MissedMeetingPenalties", fields: [missedMeetingId], references: [id])
+  missedMeetingId Int
+}
+
+enum Interests {
+  CASUAL_RELATIONSHIP
+  DATING
+  SERIOUS_DATING
+}
+
+enum Sex {
+  MALE
+  FEMALE
+}
+
+enum YesNo {
+  YES
+  NO
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  name          String?  @default("Anonymous")
+  email         String   @unique
+  image         String?
+  device_token  String
+  interests     Interests?
+  age           Int?     
+  sex           Sex?     
+  bio           String?
+  language      String?
+  relationship  String?
+  star_sign     String?
+  pets          String?
+  drinking      YesNo?
+  smoking       YesNo?
+  busy_status   Boolean  @default(false)
+  ac_delete     Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  wallet        Int      @default(0)
+  verified      Boolean  @default(false)
+
+
+  blocked_by    Listener[] @relation("BlockedUsers")
+  work          User_work[]? @relation(fields: [workId], references: [id])
+  education     User_education[]? @relation(fields: [educationId], references: [id])
+  transactions  Transaction[] @relation("UserTransactions") // Transaction history as a payer
+  deposit       Deposit[]@relation("UserDeposit")
+}
+
+model User_work {
+  id            Int      @id @default(autoincrement())
+  name          String
+  company       String?
+  position      String?
+  start_year    Int?
+  end_year      Int?
+  user          User    @relation(fields: [userId], references: [id])
+  userId        Int
+}
+
+model User_education {
+  id                    Int      @id @default(autoincrement())
+  name                  String
+  qualificationType     String?
+  institutionName       String?
+  start_year            Int?
+  end_year              Int?
+  user                  User    @relation(fields: [userId], references: [id])
+  userId                Int
+}
+
+enum Mode {
+  VIDEO_CALL
+  VOICE_CALL
+  CHAT
+}
+
+model Transaction {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  listenerId     Int
+  amount         Float //shared by user
+  listenerShare  Float
+  appShare       Float
+  mode           Mode
+  duration       Int  
+  status         TransactionStatus   @default(PENDING) // PENDING, SUCCESS, FAILED
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  user           User     @relation("UserTransactions", fields: [userId], references: [id], onDelete:NoAction)
+  listener       Listener @relation("ListenerTransactions", fields: [listenerId], references: [id])
+}
+
+model MissedCall {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  listenerId  Int
+  mode        Mode
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+  listener    Listener @relation(fields: [listenerId], references: [id])
+}
+
+model Deposit {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  amount         Float // shared by user
+  orderId        String // shared by frontend //UPDATE random
+  signatureId    String // shared by frontend
+  mode           string @default("RECHARGE") // shared by frontend
+  status         TransactionStatus   @default(PENDING) // PENDING, SUCCESS, FAILED
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  user           User     @relation("UserDeposit", fields: [userId], references: [id], onDelete: NoAction)
+}
+
+enum PaymentMode {
+  UPI
+  BANK
+}
+
+enum adminApprove {
+  TRUE 
+  FALSE
+  WAITING
+}
+
+model Withdraw {
+  id                    Int      @id @default(autoincrement())
+  listenerId            Int
+  amount                Float // shared by user
+  mode                  string @default("WITHDRAW") // shared by frontend
+  status                TransactionStatus   @default(PENDING) // PENDING, SUCCESS, FAILED
+ 
+ // Payment mode details
+  paymentMode           PaymentMode      // Either UPI or BANK
+  upi_id                String?          // UPI ID for UPI payments
+  account_number        Int?          // Bank account number
+  ifsc_code             Int?          // Bank IFSC code
+          
+  requestApproveAdmin   adminApprove @default(WAITING)
+  created_at            DateTime @default(now())
+  listener              Listener @relation("ListenerWithdraw", fields: [listenerId], references: [id], onDelete: NoAction)
+}
+
+model LeaveRequest {
+  id          Int      @id @default(autoincrement())
+  listenerId  Int
+  days        Int
+  reason      String
+  status      LeaveStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  listener    Listener @relation(fields: [listenerId], references: [id])
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ConnectionRequest {
+  id                Int      @id @default(autoincrement())
+  userId            Int
+  listenerId        Int
+  communicationType Mode
+  status            String   @default("PENDING")
+  createdAt         DateTime @default(now())
+
+  user              User     @relation(fields: [userId], references: [id])
+  listener          Listener @relation(fields: [listenerId], references: [id])
+}
