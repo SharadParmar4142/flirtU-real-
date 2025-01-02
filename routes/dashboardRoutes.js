@@ -4,7 +4,8 @@ const {
   rechargeToday, totalRechargeThisMonth, totalCallsToday, totalChatsToday, 
   totalVideoCallsToday, usersRegisteredByMonth, usersRegisteredOnDate, 
   totalRechargeByMonth, totalRechargeByDayInMonth, getMissedCallsToday, 
-  listFailedCallsByMonth, getFailedCallDetails, notifyAll, notifyByType, notifyById
+  listFailedCallsByMonth, getFailedCallDetails, notifyAll, notifyByType, notifyById,
+  notifyAllInbox, notifyByTypeInbox, notifyByIdInbox
 } = require("../controller/dashboardController");
 const validateToken = require("../middleware/validateTokenHandler");
 const adminCheck = require("../middleware/adminToken");
@@ -44,8 +45,10 @@ router.get("/failedCallDetails/:date", validateToken, adminCheck, getFailedCallD
 router.post('/notify/all', validateToken, adminCheck, notifyAll);
 router.post('/notify/type', validateToken, adminCheck, notifyByType);
 router.post('/notify/specific', validateToken, adminCheck, notifyById);
-router.post('/notify/all-tokens', validateToken, adminCheck, sendNotificationToAll);
-router.post('/notify/role-tokens', validateToken, adminCheck, sendNotificationToRole);
-router.post('/notify/specific-token', validateToken, adminCheck, sendNotificationToSpecific);
+
+// Inbox Notifications
+router.post('/inbox/all', validateToken, adminCheck, notifyAllInbox);
+router.post('/inbox/type', validateToken, adminCheck, notifyByTypeInbox);
+router.post('/inbox/specific', validateToken, adminCheck, notifyByIdInbox);
 
 module.exports = router;

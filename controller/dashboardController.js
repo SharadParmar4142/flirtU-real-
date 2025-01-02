@@ -4,7 +4,7 @@ const Redis = require('ioredis');
 const prisma = new PrismaClient();
 const redis = new Redis();
 const admin = require('../config/firebase');
-
+const uploadImageToS3 = require('../utils/uploadImage');
 redis.on('error', (err) => {
     console.error('Redis error:', err);
 });
@@ -558,7 +558,7 @@ const getFailedCallDetails = asyncHandler(async (req, res) => {
 // @access Private
 const notifyAll = asyncHandler(async (req, res) => {
     try {
-        const { title, body } = req.body;
+        const { title, body, imageFile } = req.body;
 
         if (!title || typeof title !== 'string') {
             return res.status(400).json({ message: "Invalid or missing 'title'" });
@@ -568,9 +568,18 @@ const notifyAll = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Invalid or missing 'body'" });
         }
 
+        let imageUrl = null;
+
+        // If image is provided, upload to S3
+        if (imageFile && imageFile.data && imageFile.mimeType) {
+            const fileBuffer = Buffer.from(imageFile.data, 'base64');
+            imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+        }
+
         const message = {
             notification: { title, body },
             topic: 'all',
+            ...(imageUrl && { image: imageUrl }), // Add image if available
         };
 
         await admin.messaging().send(message);
@@ -586,7 +595,7 @@ const notifyAll = asyncHandler(async (req, res) => {
 // @access Private
 const notifyByType = asyncHandler(async (req, res) => {
     try {
-        const { type, title, body } = req.body;
+        const { type, title, body, imageFile } = req.body;
 
         if (!['user', 'listener'].includes(type)) {
             return res.status(400).json({ message: "Invalid 'type'. Must be 'user' or 'listener'." });
@@ -600,11 +609,20 @@ const notifyByType = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Invalid or missing 'body'" });
         }
 
+        let imageUrl = null;
+
+        // If image is provided, upload to S3
+        if (imageFile && imageFile.data && imageFile.mimeType) {
+            const fileBuffer = Buffer.from(imageFile.data, 'base64');
+            imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+        }
+
         const topic = type === 'user' ? 'users' : 'listeners';
 
         const message = {
             notification: { title, body },
             topic,
+            ...(imageUrl && { image: imageUrl }), // Add image if available
         };
 
         await admin.messaging().send(message);
@@ -620,7 +638,7 @@ const notifyByType = asyncHandler(async (req, res) => {
 // @access Private
 const notifyById = asyncHandler(async (req, res) => {
     try {
-        const { id, title, body, role } = req.body;
+        const { id, title, body, role, imageFile } = req.body;
 
         if (!id || typeof id !== 'number') {
             return res.status(400).json({ message: "Invalid or missing 'id'" });
@@ -638,27 +656,165 @@ const notifyById = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Invalid or missing 'body'" });
         }
 
-        const tokenData =role === 'user'? await prisma.user.findUnique({ where: { id }, select: { device_token: true } })
-                : await prisma.listener.findUnique({ where: { id }, select: { device_token: true } });
+        const tokenData = role === 'user' 
+            ? await prisma.user.findUnique({ where: { id }, select: { device_token2: true } })
+            : await prisma.listener.findUnique({ where: { id }, select: { device_token2: true } });
 
-        if (!tokenData || !tokenData.device_token) {
+        if (!tokenData || !tokenData.device_token2) {
             return res.status(404).json({ message: `${role} not found or device token missing` });
+        }
+
+        let imageUrl = null;
+
+        // If image is provided, upload to S3
+        if (imageFile && imageFile.data && imageFile.mimeType) {
+            const fileBuffer = Buffer.from(imageFile.data, 'base64');
+            imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
         }
 
         const message = {
             notification: { title, body },
-            token: tokenData.device_token,
+            token: tokenData.device_token2,
+            ...(imageUrl && { image: imageUrl }), // Add image if available
         };
 
         await admin.messaging().send(message);
         res.status(200).send('Notification sent successfully');
-    } 
-    catch (error) {
+    } catch (error) {
         console.error('Error sending notification:', error);
         res.status(500).send('Error sending notification: ' + error.message);
     }
 });
 
+// @desc Send inbox notification to all users and listeners
+// @route POST /dashboard/inbox/all
+// @access Private
+const notifyAllInbox = asyncHandler(async (req, res) => {
+    try {
+        const { title, message, link, imageFile } = req.body;
+
+        if (!title || typeof title !== 'string') {
+            return res.status(400).json({ message: "Invalid or missing 'title'" });
+        }
+
+        if (!message || typeof message !== 'string') {
+            return res.status(400).json({ message: "Invalid or missing 'message'" });
+        }
+
+        if (!imageFile || !imageFile.data || !imageFile.mimeType) {
+            return res.status(400).json({ message: "Invalid or missing 'imageFile'" });
+        }
+
+        const fileBuffer = Buffer.from(imageFile.data, 'base64');
+        const imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+
+        await prisma.generalNotification.create({
+            data: {
+                title,
+                message,
+                link,
+                image_URL: imageUrl,
+                type: 'ALL'
+            }
+        });
+
+        res.status(200).send('Inbox notification stored successfully');
+    } catch (error) {
+        console.error('Error storing inbox notification:', error);
+        res.status(500).send('Error storing inbox notification: ' + error.message);
+    }
+});
+
+// @desc Send inbox notification to either users or listeners
+// @route POST /dashboard/inbox/type
+// @access Private
+const notifyByTypeInbox = asyncHandler(async (req, res) => {
+    try {
+        const { type, title, message, link, imageFile } = req.body;
+
+        if (!['USER', 'LISTENER'].includes(type)) {
+            return res.status(400).json({ message: "Invalid 'type'. Must be 'USER' or 'LISTENER'." });
+        }
+
+        if (!title || typeof title !== 'string') {
+            return res.status(400).json({ message: "Invalid or missing 'title'" });
+        }
+
+        if (!message || typeof message !== 'string') {
+            return res.status(400).json({ message: "Invalid or missing 'message'" });
+        }
+
+        if (!imageFile || !imageFile.data || !imageFile.mimeType) {
+            return res.status(400).json({ message: "Invalid or missing 'imageFile'" });
+        }
+
+        const fileBuffer = Buffer.from(imageFile.data, 'base64');
+        const imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+
+        await prisma.generalNotification.create({
+            data: {
+                title,
+                message,
+                link,
+                image_URL: imageUrl,
+                type
+            }
+        });
+
+        res.status(200).send('Inbox notification stored successfully');
+    } catch (error) {
+        console.error('Error storing inbox notification:', error);
+        res.status(500).send('Error storing inbox notification: ' + error.message);
+    }
+});
+
+// @desc Send inbox notification to a specific user or listener by ID
+// @route POST /dashboard/inbox/specific
+// @access Private
+const notifyByIdInbox = asyncHandler(async (req, res) => {
+    try {
+        const { id, title, message, role, link, imageFile } = req.body;
+
+        if (!id || typeof id !== 'number') {
+            return res.status(400).json({ message: "Invalid or missing 'id'" });
+        }
+
+        if (!['USER', 'LISTENER'].includes(role)) {
+            return res.status(400).json({ message: "Invalid 'role'. Must be 'USER' or 'LISTENER'." });
+        }
+
+        if (!title || typeof title !== 'string') {
+            return res.status(400).json({ message: "Invalid or missing 'title'" });
+        }
+
+        if (!message || typeof message !== 'string') {
+            return res.status(400).json({ message: "Invalid or missing 'message'" });
+        }
+
+        if (!imageFile || !imageFile.data || !imageFile.mimeType) {
+            return res.status(400).json({ message: "Invalid or missing 'imageFile'" });
+        }
+
+        const fileBuffer = Buffer.from(imageFile.data, 'base64');
+        const imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+
+        const data = {
+            title,
+            message,
+            link,
+            image_URL: imageUrl,
+            type: role,
+            ...(role === 'USER' ? { userId: id } : { listenerId: id })
+        };
+
+        await prisma.specificNotification.create({ data });
+
+        res.status(200).send('Inbox notification stored successfully');
+    } catch (error) {
+        console.error('Error storing inbox notification:', error);
+        res.status(500).send('Error storing inbox notification: ' + error.message);
+    }
+});
 
 module.exports = {
     countListeners,
@@ -679,5 +835,8 @@ module.exports = {
     getFailedCallDetails,
     notifyAll,
     notifyByType,
-    notifyById
+    notifyById,
+    notifyAllInbox,
+    notifyByTypeInbox,
+    notifyByIdInbox
 };

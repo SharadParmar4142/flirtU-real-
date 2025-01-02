@@ -49,7 +49,7 @@ const registerUser = asyncHandler(async (req, res) => {
 // @route POST /user/login
 // @access Public
 const loginUser = asyncHandler(async (req, res) => {
-    const { email, device_token } = req.body;
+    const { email, device_token2 } = req.body;
 
     if (!email.endsWith("@gmail.com")) {
         return res.status(400).json({ message: "Only @gmail.com emails are allowed" });
@@ -57,18 +57,18 @@ const loginUser = asyncHandler(async (req, res) => {
 
     try {
         const user = await prisma.user.findFirst({
-            where: { email, device_token }
+            where: { email, device_token2 }
         });
         const listener = await prisma.listener.findFirst({
-            where: { email, device_token }
+            where: { email, device_token2 }
         });
         if (user) {
             await prisma.user.update({
                 where: { email },
-                data: { device_token }
+                data: { device_token2 }
             });
             const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, secretKey, { expiresIn: '1h' });
-            await subscribeToTopic(device_token, 'users'); // Subscribe to users topic
+            await subscribeToTopic(device_token2, 'users'); // Subscribe to users topic
 
             res.status(200).json({ message: "User logged in", type: "user", token });
         } 
@@ -76,25 +76,25 @@ const loginUser = asyncHandler(async (req, res) => {
 
             await prisma.listener.update({
                 where: { email },
-                data: { device_token }
+                data: { device_token2 }
             });
 
             const token = jwt.sign({ id: listener.id, email: listener.email, name: listener.name }, secretKey, { expiresIn: '1h' });
-            await subscribeToTopic(device_token, 'listeners');
+            await subscribeToTopic(device_token2, 'listeners');
 
             res.status(200).json({ message: "Listener logged in", type: "listener", token });
         } 
         else {
             // Register a new user if no existing user
             const newUser = await prisma.user.create({
-                data: { email, device_token }
+                data: { email, device_token2 }
             });
             await prisma.user.update({
                 where: { email },
-                data: { device_token }
+                data: { device_token2 }
             });
             const token = jwt.sign({ id: newUser.id, email: newUser.email }, secretKey, { expiresIn: '1h' });
-            await subscribeToTopic(device_token, 'users'); // Subscribe to users topic
+            await subscribeToTopic(device_token2, 'users'); // Subscribe to users topic
 
             res.status(201).json({ message: "New user registered and logged in", type: "user", token });
         }

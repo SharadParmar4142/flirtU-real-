@@ -527,6 +527,38 @@ const handleConnectionRequest = asyncHandler(async (req, res) => {
     }
 });
 
+// @desc Get all inbox notifications for the listener
+// @route GET /listener/inbox/notifications
+// @access Private
+const getListenerInboxNotifications = asyncHandler(async (req, res) => {
+    const { id } = req.user; // Get listener ID from the token
+
+    try {
+        const generalNotifications = await prisma.generalNotification.findMany({
+            where: {
+                OR: [
+                    { type: 'ALL' },
+                    { type: 'LISTENER' }
+                ]
+            },
+            orderBy: { created_at: 'desc' }
+        });
+
+        const specificNotifications = await prisma.specificNotification.findMany({
+            where: { listenerId: id },
+            orderBy: { created_at: 'desc' }
+        });
+
+        const notifications = [...generalNotifications, ...specificNotifications];
+        notifications.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        res.status(200).json(notifications);
+    } 
+    catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 module.exports = {
     loginListener,
     listListeners,
@@ -542,5 +574,6 @@ module.exports = {
     getPenalties,
     requestLeave,
     markAttendance,
-    handleConnectionRequest
+    handleConnectionRequest,
+    getListenerInboxNotifications
 };

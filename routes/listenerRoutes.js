@@ -1,5 +1,5 @@
 const express = require("express");
-const { loginListener, listListeners, deleteListener, walletBalanceListeners, withdrawListener, updateProfile, getUserOrListenerDetails, listListenerTransactions, listListenerWithdrawals, requestProfileUpdate, getMissedMeetings, getPenalties, requestLeave, markAttendance, acceptConnectionRequest, rejectConnectionRequest, handleConnectionRequest } = require("../controller/listenerController");
+const { loginListener, listListeners, deleteListener, walletBalanceListeners, withdrawListener, updateProfile, getUserOrListenerDetails, listListenerTransactions, listListenerWithdrawals, requestProfileUpdate, getMissedMeetings, getPenalties, requestLeave, markAttendance, handleConnectionRequest, getListenerInboxNotifications } = require("../controller/listenerController");
 const validateToken = require("../middleware/validateTokenHandler");
 const listenerCheck = require("../middleware/listenerToken");
 const router = express.Router();
@@ -24,5 +24,7 @@ router.post("/markAttendance", validateToken, listenerCheck, markAttendance);
 
 // Handle connection request (accept/reject)
 router.post("/handleConnectionRequest", validateToken, listenerCheck, handleConnectionRequest);
+
+router.get("/inbox/notifications", validateToken, listenerCheck, getListenerInboxNotifications);
 
 module.exports = router;

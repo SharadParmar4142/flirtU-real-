@@ -1,5 +1,5 @@
 const express = require("express");
-const { registerUser, loginUser, listListners, deleteUser, walletBalanceUsers, depositUser, transaction, updateProfile, getUserOrListenerDetails, updateWork, updateEducation, listUserTransactions, listUserDeposits, sendConnectionRequest, acceptConnectionRequest, isUserBlockedByListener } = require("../controller/usercontroller");
+const { registerUser, loginUser, listListners, deleteUser, walletBalanceUsers, depositUser, transaction, updateProfile, getUserOrListenerDetails, updateWork, updateEducation, listUserTransactions, listUserDeposits, sendConnectionRequest, acceptConnectionRequest, isUserBlockedByListener, getUserInboxNotifications } = require("../controller/usercontroller");
 const validateToken = require("../middleware/validateTokenHandler");
 const userCheck = require("../middleware/userToken");
 const nocache = require("../middleware/agoraNoCache");
@@ -58,5 +58,8 @@ router.post("/acceptConnectionRequest", validateToken, userCheck, acceptConnecti
 
 // Check if user is blocked by listener
 router.get("/isUserBlocked/:listenerId", validateToken, userCheck, isUserBlockedByListener);
+
+// Show all inbox notifications for the user
+router.get("/inbox/notifications", validateToken, userCheck, getUserInboxNotifications);
 
 module.exports = router;

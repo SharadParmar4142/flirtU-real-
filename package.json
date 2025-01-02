@@ -11,12 +11,14 @@
   "description": "",
   "dependencies": {
     "agora-access-token": "^2.0.4",
+    "aws-sdk": "^2.1692.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-async-handler": "^1.2.0",
     "firebase-admin": "^13.0.2",
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^3.0.3",
+    "path": "^0.12.7",
     "prisma": "^6.0.1",
     "socket.io": "^4.8.1"
   },

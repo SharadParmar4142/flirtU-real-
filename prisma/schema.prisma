@@ -19,7 +19,8 @@ model Listener {
   idols         String
   sex           Sex
   about         String
-  device_token  String
+  device_token  String   //Used for sending connection request
+  device_token2 String   //Used for notification
   online_status Boolean  @default(false)
   busy_status   Boolean  @default(false)
   ac_delete     Boolean  @default(false)
@@ -105,6 +106,7 @@ model User {
   email         String   @unique
   image         String?
   device_token  String
+  device_token2 String
   interests     Interests?
   age           Int?     
   sex           Sex?     
@@ -255,3 +257,36 @@ model ConnectionRequest {
   user              User     @relation(fields: [userId], references: [id])
   listener          Listener @relation(fields: [listenerId], references: [id])
 }
+
+
+enum NotificationType {
+  ALL
+  USER
+  LISTENER
+}
+
+
+model GeneralNotification {
+  id          Int      @id @default(autoincrement())
+  title       String
+  message     String
+  link        String?
+  image_URL   String
+  created_at  DateTime @default(now())
+  type        NotificationType
+}
+
+model SpecificNotification {
+  id          Int      @id @default(autoincrement())
+  title       String
+  message     String
+  link        String?
+  image_URL   String
+  created_at  DateTime @default(now())
+  type        NotificationType
+  userId      Int?
+  listenerId  Int?
+  user        User?    @relation(fields: [userId], references: [id])
+  listener    Listener? @relation(fields: [listenerId], references: [id])
+}
+
