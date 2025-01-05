@@ -20,7 +20,7 @@ const uploadImageToS3 = async (fileBuffer, fileName, mimeType) => {
         };
 
         const data = await s3.upload(params).promise();
-        console.log('Image uploaded to S3:', data.Location);
+        console.log('Image uploaded to S3:', data.Location);  // Debug, Development not Production
         return data.Location; // Return public URL
     } 
     catch (error) {

@@ -6,7 +6,7 @@ const secretKey = process.env.ACCESS_TOKEN_SECRET; // Secret key for JWT
 const Redis = require('ioredis');
 const redis = new Redis();
 const io = require('../socket'); // Assuming you have a socket.js file to initialize Socket.io
-
+const uploadImageToS3 = require('../utils/uploadImage'); // Assuming you have a utility function to upload images to S3
 
 redis.on('error', (err) => {
     console.error('Redis error:', err);
@@ -187,11 +187,20 @@ const updateProfile = asyncHandler(async (req, res) => {
           favoriteFood,
           hobbies,
           idols,
-          about
+          about,
+          imageFile // Base64 encoded image file
         } = req.body;
     
         // Validate required inputs (optional)
         if (!id) return res.status(400).json({ error: "Listener ID is required" });
+    
+        let imageUrl = null;
+    
+        // If image is provided, upload to S3
+        if (imageFile && imageFile.data && imageFile.mimeType) {
+            const fileBuffer = Buffer.from(imageFile.data, 'base64');
+            imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+        }
     
         // Update the listener in the database
         const updatedListener = await prisma.listener.update({
@@ -201,7 +210,8 @@ const updateProfile = asyncHandler(async (req, res) => {
             favoriteFood,
             hobbies,
             idols,
-            about
+            about,
+            ...(imageUrl && { image: imageUrl }) // Add image URL if available
           },
         });
     
@@ -527,7 +537,7 @@ const handleConnectionRequest = asyncHandler(async (req, res) => {
     }
 });
 
-// @desc Get all inbox notifications for the listener
+// @desc Get all inbox notifications for the listener 
 // @route GET /listener/inbox/notifications
 // @access Private
 const getListenerInboxNotifications = asyncHandler(async (req, res) => {
@@ -559,6 +569,70 @@ const getListenerInboxNotifications = asyncHandler(async (req, res) => {
     }
 });
 
+// @desc Send message to user
+// @route POST /listener/sendMessage
+// @access Private
+const sendMessageToUser = asyncHandler(async (req, res) => {
+    const { userId, message } = req.body;
+    const { id: listenerId } = req.user; // Get listener ID from the token
+
+    if (!userId || !message) {
+        return res.status(400).json({ message: "User ID and message are required" });
+    }
+
+    try {
+        const newMessage = await prisma.messageUser.create({
+            data: {
+                senderId: listenerId,
+                receiverId: userId,
+                message
+            }
+        });
+
+        // Fetch user's device token
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { device_token2: true }
+        });
+
+        if (user && user.device_token2) {
+            const notificationMessage = {
+                notification: { title: "New Message", body: message },
+                token: user.device_token2
+            };
+
+            await admin.messaging().send(notificationMessage);
+        }
+
+        res.status(201).json({ message: "Message sent to user", newMessage });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc Get messages sent to the listener from users
+// @route GET /listener/messages
+// @access Private
+const getListenerMessages = asyncHandler(async (req, res) => {
+    const { id: listenerId } = req.user; // Get listener ID from the token
+
+    try {
+        const messages = await prisma.messageListener.findMany({
+            where: { receiverId: listenerId },
+            orderBy: { created_at: 'desc' },
+            include: {
+                user: {
+                    select: { name: true }
+                }
+            }
+        });
+
+        res.status(200).json(messages);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 module.exports = {
     loginListener,
     listListeners,
@@ -575,5 +649,7 @@ module.exports = {
     requestLeave,
     markAttendance,
     handleConnectionRequest,
-    getListenerInboxNotifications
+    getListenerInboxNotifications,
+    sendMessageToUser,
+    getListenerMessages
 };

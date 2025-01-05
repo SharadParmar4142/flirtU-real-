@@ -96,6 +96,31 @@ const loginUser = asyncHandler(async (req, res) => {
             const token = jwt.sign({ id: newUser.id, email: newUser.email }, secretKey, { expiresIn: '1h' });
             await subscribeToTopic(device_token2, 'users'); // Subscribe to users topic
 
+
+            // Logic to send inbox notification to listeners that a new user is registered
+            const title = "New User Registered";
+            const message = `A new user with email ${email} has registered.`;
+            const link = null; // Add any relevant link if needed
+            const imageUrl = null; // Add any relevant image URL if needed
+
+            await prisma.generalNotification.create({
+                data: {
+                    title,
+                    message,
+                    link,
+                    image_URL: imageUrl,
+                    type: 'LISTENER'
+                }
+            });
+
+            const notificationMessage = {
+                notification: { title, body: message },
+                topic: 'listeners',
+                ...(imageUrl && { image: imageUrl }),
+            };
+
+            await admin.messaging().send(notificationMessage);
+
             res.status(201).json({ message: "New user registered and logged in", type: "user", token });
         }
     } catch (error) {
@@ -583,7 +608,7 @@ const sendConnectionRequest = asyncHandler(async (req, res) => {
         });
 
         // Notify listener of the connection request
-        io.getIo().to(listener.device_token).emit('connectionRequest', connectionRequest);
+        io.getIo().to(listener. map device_token>).emit('connectionRequest', connectionRequest);
 
         // Set a timeout to handle missed calls
         setTimeout(async () => {
@@ -597,7 +622,7 @@ const sendConnectionRequest = asyncHandler(async (req, res) => {
                         userId,
                         listenerId,
                         mode: communicationType
-                    }
+                    }   
                 });
 
                 await prisma.connectionRequest.update({
@@ -688,6 +713,101 @@ const isUserBlockedByListener = asyncHandler(async (req, res) => {
     }
 });
 
+// @desc Get all inbox notifications for the user
+// @route GET /user/inbox/notifications
+// @access Private
+const getUserInboxNotifications = asyncHandler(async (req, res) => {
+    const { id } = req.user; // Get user ID from the token
+
+    try {
+        const generalNotifications = await prisma.generalNotification.findMany({
+            where: {
+                OR: [
+                    { type: 'ALL' },
+                    { type: 'USER' }
+                ]
+            },
+            orderBy: { created_at: 'desc' }
+        });
+
+        const specificNotifications = await prisma.specificNotification.findMany({
+            where: { userId: id },
+            orderBy: { created_at: 'desc' }
+        });
+
+        const notifications = [...generalNotifications, ...specificNotifications];
+        notifications.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        res.status(200).json(notifications);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc Send message to listener
+// @route POST /user/sendMessage
+// @access Private
+const sendMessageToListener = asyncHandler(async (req, res) => {
+    const { listenerId, message } = req.body;
+    const { id: userId } = req.user; // Get user ID from the token
+
+    if (!listenerId || !message) {
+        return res.status(400).json({ message: "Listener ID and message are required" });
+    }
+
+    try {
+        const newMessage = await prisma.messageListener.create({
+            data: {
+                senderId: userId,
+                receiverId: listenerId,
+                message
+            }
+        });
+
+        // Fetch listener's device token
+        const listener = await prisma.listener.findUnique({
+            where: { id: listenerId },
+            select: { device_token2: true }
+        });
+
+        if (listener && listener.device_token2) {
+            const notificationMessage = {
+                notification: { title: "New Message", body: message },
+                token: listener.device_token2
+            };
+
+            await admin.messaging().send(notificationMessage);
+        }
+
+        res.status(201).json({ message: "Message sent to listener", newMessage });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @desc Get messages sent to the user from listeners
+// @route GET /user/messages
+// @access Private
+const getUserMessages = asyncHandler(async (req, res) => {
+    const { id: userId } = req.user; // Get user ID from the token
+
+    try {
+        const messages = await prisma.messageUser.findMany({
+            where: { receiverId: userId },
+            orderBy: { created_at: 'desc' },
+            include: {
+                listener: {
+                    select: { name: true }
+                }
+            }
+        });
+
+        res.status(200).json(messages);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 module.exports = {
     registerUser,
     loginUser,
@@ -704,7 +824,10 @@ module.exports = {
     listUserDeposits,
     sendConnectionRequest,
     acceptConnectionRequest,
-    isUserBlockedByListener
+    isUserBlockedByListener,
+    getUserInboxNotifications,
+    sendMessageToListener,
+    getUserMessages
 };
 
 

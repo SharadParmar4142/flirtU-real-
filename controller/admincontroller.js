@@ -122,21 +122,42 @@ const walletBalanceUsers = asyncHandler(async (req, res) => {
 //@route GET /admin/walletBalance/Listners
 //@access private
 const walletBalanceListners = asyncHandler(async (req, res) => {
-    const listeners = await prisma.listener.findMany({
-        select: { id, wallet }
-    });
-    res.status(200).json(listeners);
+    const cacheKey = 'walletBalanceListeners';
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+        return res.status(200).json(JSON.parse(cachedData));
+    }
+
+    try {
+        const listeners = await prisma.listener.findMany({
+            select: { id, wallet }
+        });
+        await redis.set(cacheKey, JSON.stringify(listeners), 'EX', 86400); // Cache for 1 day
+        res.status(200).json(listeners);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 });
+
 
 // @desc List all pending withdrawal requests
 // @route GET /admin/withdrawalRequests
 // @access Private
 const listWithdrawalRequests = asyncHandler(async (req, res) => {
+    const cacheKey = 'withdrawalRequests';
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+        return res.status(200).json(JSON.parse(cachedData));
+    }
+
     try {
         const requests = await prisma.withdraw.findMany({
             where: { requestApproveAdmin: 'WAITING' },
             include: { listener: true }
         });
+        await redis.set(cacheKey, JSON.stringify(requests), 'EX', 86400); // Cache for 1 day
         res.status(200).json(requests);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -204,11 +225,19 @@ const handleWithdrawalRequest = asyncHandler(async (req, res) => {
 // @route GET /admin/profileUpdateRequests
 // @access Private
 const listProfileUpdateRequests = asyncHandler(async (req, res) => {
+    const cacheKey = 'profileUpdateRequests';
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+        return res.status(200).json(JSON.parse(cachedData));
+    }
+
     try {
         const requests = await prisma.pendingProfile.findMany({
             where: { listener: { updateProfile: 'WAITING' } },
             include: { listener: true }
         });
+        await redis.set(cacheKey, JSON.stringify(requests), 'EX', 86400); // Cache for 1 day
         res.status(200).json(requests);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -263,7 +292,7 @@ const handleProfileUpdateRequest = asyncHandler(async (req, res) => {
             });
 
             // Delete profile request
-            await prisma.pendingProfile.delete({
+            await tx.pendingProfile.delete({
                 where: { listenerId: parseInt(id) }
             });
 
@@ -318,28 +347,26 @@ const updateListenerProfile = asyncHandler(async (req, res) => {
 // @access Private
 const updateListenerProfileImage = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { image } = req.body;
+    const { imageFile } = req.body;
 
+    let imageUrl;
 
-    //middleware S3 bucket to upload image
-    id->database image ->delete image from database
-    update image in S3 
-    ->link
-
-    S3-> image link
-     (replace link)
+    // If image is provided, upload to S3
+    if (imageFile && imageFile.data && imageFile.mimeType) {
+        const fileBuffer = Buffer.from(imageFile.data, 'base64');
+        imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+    }
 
     try {
         const updatedListener = await prisma.listener.update({
             where: { id: parseInt(id) },
-            data: { image }
+            data: { image: imageUrl }
         });
         res.status(200).json(updatedListener);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 });
-
 
 ON HOLD THE COMMON PART
 // show duration and mode and datetime, 
@@ -382,10 +409,18 @@ ON HOLD THE COMMON PART
 //ON HOLD THE COMMON PART*********************************************
 
 sdvsdv
+
 // @desc List all transactions of all listeners
 // @route GET /admin/transactions/listeners
 // @access Private
 const listAllListenerTransactions = asyncHandler(async (req, res) => {
+    const cacheKey = 'listenerTransactions';
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+        return res.status(200).json(JSON.parse(cachedData));
+    }
+
     try {
         const transactions = await prisma.transaction.findMany({
             where: { listenerId: { not: null } },
@@ -409,6 +444,7 @@ const listAllListenerTransactions = asyncHandler(async (req, res) => {
                 }
             }
         });
+        await redis.set(cacheKey, JSON.stringify(transactions), 'EX', 86400); // Cache for 1 day
         res.status(200).json(transactions);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -420,6 +456,13 @@ const listAllListenerTransactions = asyncHandler(async (req, res) => {
 // @access Private
 const listUserTransactionsById = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const cacheKey = `userTransactions:${id}`;
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+        return res.status(200).json(JSON.parse(cachedData));
+    }
+
     try {
         const transactions = await prisma.transaction.findMany({
             where: {
@@ -447,6 +490,7 @@ const listUserTransactionsById = asyncHandler(async (req, res) => {
                 created_at: true
             }
         });
+        await redis.set(cacheKey, JSON.stringify(transactions), 'EX', 86400); // Cache for 1 day
         res.status(200).json(transactions);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -457,7 +501,14 @@ const listUserTransactionsById = asyncHandler(async (req, res) => {
 // @route GET /admin/transactions/listener/:id/:email
 // @access Private
 const listListenerTransactionsById = asyncHandler(async (req, res) => {
-    const { id} = req.params;
+    const { id } = req.params;
+    const cacheKey = `listenerTransactions:${id}`;
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+        return res.status(200).json(JSON.parse(cachedData));
+    }
+
     try {
         const transactions = await prisma.transaction.findMany({
             where: {
@@ -483,6 +534,7 @@ const listListenerTransactionsById = asyncHandler(async (req, res) => {
                 }
             }
         });
+        await redis.set(cacheKey, JSON.stringify(transactions), 'EX', 86400); // Cache for 1 day
         res.status(200).json(transactions);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -493,6 +545,13 @@ const listListenerTransactionsById = asyncHandler(async (req, res) => {
 // @route GET /admin/deposits
 // @access Private
 const listAllDeposits = asyncHandler(async (req, res) => {
+    const cacheKey = 'allDeposits';
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+        return res.status(200).json(JSON.parse(cachedData));
+    }
+
     try {
         const deposits = await prisma.deposit.findMany({
             orderBy: { created_at: 'desc' },
@@ -509,6 +568,7 @@ const listAllDeposits = asyncHandler(async (req, res) => {
                 }
             }
         });
+        await redis.set(cacheKey, JSON.stringify(deposits), 'EX', 86400); // Cache for 1 day
         res.status(200).json(deposits);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -520,6 +580,13 @@ const listAllDeposits = asyncHandler(async (req, res) => {
 // @access Private
 const listDepositsByUserId = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const cacheKey = `userDeposits:${id}`;
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+        return res.status(200).json(JSON.parse(cachedData));
+    }
+
     try {
         const deposits = await prisma.deposit.findMany({
             where: { userId: parseInt(id) },
@@ -538,6 +605,7 @@ const listDepositsByUserId = asyncHandler(async (req, res) => {
                 }
             }
         });
+        await redis.set(cacheKey, JSON.stringify(deposits), 'EX', 86400); // Cache for 1 day
         res.status(200).json(deposits);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -548,6 +616,13 @@ const listDepositsByUserId = asyncHandler(async (req, res) => {
 // @route GET /admin/withdrawals
 // @access Private
 const listAllWithdrawals = asyncHandler(async (req, res) => {
+    const cacheKey = 'allWithdrawals';
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+        return res.status(200).json(JSON.parse(cachedData));
+    }
+
     try {
         const withdrawals = await prisma.withdraw.findMany({
             orderBy: { created_at: 'desc' },
@@ -564,6 +639,7 @@ const listAllWithdrawals = asyncHandler(async (req, res) => {
                 }
             }
         });
+        await redis.set(cacheKey, JSON.stringify(withdrawals), 'EX', 86400); // Cache for 1 day
         res.status(200).json(withdrawals);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -575,6 +651,13 @@ const listAllWithdrawals = asyncHandler(async (req, res) => {
 // @access Private
 const listWithdrawalsByListenerId = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const cacheKey = `listenerWithdrawals:${id}`;
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+        return res.status(200).json(JSON.parse(cachedData));
+    }
+
     try {
         const withdrawals = await prisma.withdraw.findMany({
             where: { listenerId: parseInt(id) },
@@ -592,6 +675,7 @@ const listWithdrawalsByListenerId = asyncHandler(async (req, res) => {
                 }
             }
         });
+        await redis.set(cacheKey, JSON.stringify(withdrawals), 'EX', 86400); // Cache for 1 day
         res.status(200).json(withdrawals);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -644,6 +728,13 @@ const approveLeaveRequest = asyncHandler(async (req, res) => {
 // @route GET /admin/leaveRequests
 // @access Private
 const listLeaveRequests = asyncHandler(async (req, res) => {
+    const cacheKey = 'leaveRequests';
+    const cachedData = await redis.get(cacheKey);
+
+    if (cachedData) {
+        return res.status(200).json(JSON.parse(cachedData));
+    }
+
     try {
         const leaveRequests = await prisma.leaveRequest.findMany({
             orderBy: { createdAt: 'desc' },
@@ -657,6 +748,7 @@ const listLeaveRequests = asyncHandler(async (req, res) => {
                 }
             }
         });
+        await redis.set(cacheKey, JSON.stringify(leaveRequests), 'EX', 86400); // Cache for 1 day
         res.status(200).json(leaveRequests);
     } catch (error) {
         res.status(500).json({ message: error.message });

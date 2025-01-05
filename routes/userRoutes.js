@@ -1,5 +1,5 @@
 const express = require("express");
-const { registerUser, loginUser, listListners, deleteUser, walletBalanceUsers, depositUser, transaction, updateProfile, getUserOrListenerDetails, updateWork, updateEducation, listUserTransactions, listUserDeposits, sendConnectionRequest, acceptConnectionRequest, isUserBlockedByListener, getUserInboxNotifications } = require("../controller/usercontroller");
+const { registerUser, loginUser, listListners, deleteUser, walletBalanceUsers, depositUser, transaction, updateProfile, getUserOrListenerDetails, updateWork, updateEducation, listUserTransactions, listUserDeposits, sendConnectionRequest, acceptConnectionRequest, isUserBlockedByListener, getUserInboxNotifications, sendMessageToListener, getUserMessages } = require("../controller/usercontroller");
 const validateToken = require("../middleware/validateTokenHandler");
 const userCheck = require("../middleware/userToken");
 const nocache = require("../middleware/agoraNoCache");
@@ -61,5 +61,11 @@ router.get("/isUserBlocked/:listenerId", validateToken, userCheck, isUserBlocked
 
 // Show all inbox notifications for the user
 router.get("/inbox/notifications", validateToken, userCheck, getUserInboxNotifications);
+
+// Send message to listener
+router.post("/sendMessage", validateToken, userCheck, sendMessageToListener);
+
+// Fetch messages sent to the user from listeners
+router.get("/messages", validateToken, userCheck, getUserMessages);
 
 module.exports = router;

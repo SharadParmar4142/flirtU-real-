@@ -1,5 +1,5 @@
 const express = require("express");
-const { loginListener, listListeners, deleteListener, walletBalanceListeners, withdrawListener, updateProfile, getUserOrListenerDetails, listListenerTransactions, listListenerWithdrawals, requestProfileUpdate, getMissedMeetings, getPenalties, requestLeave, markAttendance, handleConnectionRequest, getListenerInboxNotifications } = require("../controller/listenerController");
+const { loginListener, listListeners, deleteListener, walletBalanceListeners, withdrawListener, updateProfile, getUserOrListenerDetails, listListenerTransactions, listListenerWithdrawals, requestProfileUpdate, getMissedMeetings, getPenalties, requestLeave, markAttendance, handleConnectionRequest, getListenerInboxNotifications, sendMessageToUser, getListenerMessages } = require("../controller/listenerController");
 const validateToken = require("../middleware/validateTokenHandler");
 const listenerCheck = require("../middleware/listenerToken");
 const router = express.Router();
@@ -26,5 +26,10 @@ router.post("/markAttendance", validateToken, listenerCheck, markAttendance);
 router.post("/handleConnectionRequest", validateToken, listenerCheck, handleConnectionRequest);
 
 router.get("/inbox/notifications", validateToken, listenerCheck, getListenerInboxNotifications);
+
+router.post("/sendMessage", validateToken, listenerCheck, sendMessageToUser);
+
+// Fetch messages sent to the listener from users
+router.get("/messages", validateToken, listenerCheck, getListenerMessages);
 
 module.exports = router;

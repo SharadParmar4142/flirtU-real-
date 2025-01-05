@@ -1,7 +1,6 @@
 const socketIo = require('socket.io');
 
 let io;
-
 module.exports = {
     init: (server) => {
         io = socketIo(server, {
@@ -29,7 +28,7 @@ module.exports = {
 
         return io;
     },
-    getIo: () => {
+    getIo: () => {  
         if (!io) {
             throw new Error("Socket.io not initialized!");
         }

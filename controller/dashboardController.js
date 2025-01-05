@@ -701,12 +701,12 @@ const notifyAllInbox = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Invalid or missing 'message'" });
         }
 
-        if (!imageFile || !imageFile.data || !imageFile.mimeType) {
-            return res.status(400).json({ message: "Invalid or missing 'imageFile'" });
-        }
+        let imageUrl = null;
 
-        const fileBuffer = Buffer.from(imageFile.data, 'base64');
-        const imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+        if (imageFile && imageFile.data && imageFile.mimeType) {
+            const fileBuffer = Buffer.from(imageFile.data, 'base64');
+            imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+        }
 
         await prisma.generalNotification.create({
             data: {
@@ -718,10 +718,17 @@ const notifyAllInbox = asyncHandler(async (req, res) => {
             }
         });
 
-        res.status(200).send('Inbox notification stored successfully');
+        const notificationMessage = {
+            notification: { title, body: message },
+            topic: 'all',
+            ...(imageUrl && { image: imageUrl }),
+        };
+
+        await admin.messaging().send(notificationMessage);
+        res.status(200).send('Inbox notification stored and sent successfully');
     } catch (error) {
-        console.error('Error storing inbox notification:', error);
-        res.status(500).send('Error storing inbox notification: ' + error.message);
+        console.error('Error storing and sending inbox notification:', error);
+        res.status(500).send('Error storing and sending inbox notification: ' + error.message);
     }
 });
 
@@ -744,12 +751,12 @@ const notifyByTypeInbox = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Invalid or missing 'message'" });
         }
 
-        if (!imageFile || !imageFile.data || !imageFile.mimeType) {
-            return res.status(400).json({ message: "Invalid or missing 'imageFile'" });
-        }
+        let imageUrl = null;
 
-        const fileBuffer = Buffer.from(imageFile.data, 'base64');
-        const imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+        if (imageFile && imageFile.data && imageFile.mimeType) {
+            const fileBuffer = Buffer.from(imageFile.data, 'base64');
+            imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+        }
 
         await prisma.generalNotification.create({
             data: {
@@ -761,10 +768,19 @@ const notifyByTypeInbox = asyncHandler(async (req, res) => {
             }
         });
 
-        res.status(200).send('Inbox notification stored successfully');
+        const topic = type === 'USER' ? 'users' : 'listeners';
+
+        const notificationMessage = {
+            notification: { title, body: message },
+            topic,
+            ...(imageUrl && { image: imageUrl }),
+        };
+
+        await admin.messaging().send(notificationMessage);
+        res.status(200).send('Inbox notification stored and sent successfully');
     } catch (error) {
-        console.error('Error storing inbox notification:', error);
-        res.status(500).send('Error storing inbox notification: ' + error.message);
+        console.error('Error storing and sending inbox notification:', error);
+        res.status(500).send('Error storing and sending inbox notification: ' + error.message);
     }
 });
 
@@ -791,12 +807,12 @@ const notifyByIdInbox = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Invalid or missing 'message'" });
         }
 
-        if (!imageFile || !imageFile.data || !imageFile.mimeType) {
-            return res.status(400).json({ message: "Invalid or missing 'imageFile'" });
-        }
+        let imageUrl = null;
 
-        const fileBuffer = Buffer.from(imageFile.data, 'base64');
-        const imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+        if (imageFile && imageFile.data && imageFile.mimeType) {
+            const fileBuffer = Buffer.from(imageFile.data, 'base64');
+            imageUrl = await uploadImageToS3(fileBuffer, imageFile.name, imageFile.mimeType);
+        }
 
         const data = {
             title,
@@ -809,10 +825,25 @@ const notifyByIdInbox = asyncHandler(async (req, res) => {
 
         await prisma.specificNotification.create({ data });
 
-        res.status(200).send('Inbox notification stored successfully');
+        const tokenData = role === 'USER' 
+            ? await prisma.user.findUnique({ where: { id }, select: { device_token2: true } })
+            : await prisma.listener.findUnique({ where: { id }, select: { device_token2: true } });
+
+        if (!tokenData || !tokenData.device_token2) {
+            return res.status(404).json({ message: `${role} not found or device token missing` });
+        }
+
+        const notificationMessage = {
+            notification: { title, body: message },
+            token: tokenData.device_token2,
+            ...(imageUrl && { image: imageUrl }),
+        };
+
+        await admin.messaging().send(notificationMessage);
+        res.status(200).send('Inbox notification stored and sent successfully');
     } catch (error) {
-        console.error('Error storing inbox notification:', error);
-        res.status(500).send('Error storing inbox notification: ' + error.message);
+        console.error('Error storing and sending inbox notification:', error);
+        res.status(500).send('Error storing and sending inbox notification: ' + error.message);
     }
 });
 

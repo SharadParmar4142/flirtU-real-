@@ -9,24 +9,24 @@ datasource db {
 
 model Listener {
   id            Int      @id @default(autoincrement())
-  name          String  
+  name          String   @index // Frequently used in queries
   email         String   @unique
   image         String
   age           Int
-  language      String
+  language      String   
   favoriteFood  String
   hobbies       String
   idols         String
   sex           Sex
   about         String
-  device_token  String   //Used for sending connection request
-  device_token2 String   //Used for notification
-  online_status Boolean  @default(false)
-  busy_status   Boolean  @default(false)
+  device_token  String   
+  device_token2 String   @index //Used for notification
+  online_status Boolean  @default(false) 
+  busy_status   Boolean  @default(false) 
   ac_delete     Boolean  @default(false)
-  created_at    DateTime @default(now())
+  created_at    DateTime @default(now()) 
   updated_at    DateTime @updatedAt
-  wallet        Int      @default(0)
+  wallet        Int      @default(0) 
   leaveAvailable Int @default(4)
 
   updateProfile adminApprove @default(FALSE)
@@ -51,10 +51,10 @@ model PendingProfile {
 
 model MissedMeeting {
   id             Int      @id @default(autoincrement())
-  listenerId     Int
-  scheduledAt    DateTime
+  listenerId     Int      @index
+  scheduledAt    DateTime @index
   createdAt      DateTime @default(now())
-  attended       Boolean   @default(false)
+  attended       Boolean   @default(false) 
   attendedAt     DateTime?                // Time when the listener joined
 
   listener       Listener @relation(fields: [listenerId], references: [id])
@@ -69,10 +69,10 @@ enum PenaltyMode {
 
 model Penalty {
   id             Int      @id @default(autoincrement())
-  listenerId     Int
-  penaltyMode    PenaltyMode
+  listenerId     Int      
+  penaltyMode    PenaltyMode 
   amount         Float
-  createdAt      DateTime @default(now())
+  createdAt      DateTime @default(now()) @index
   listener       Listener @relation(fields: [listenerId], references: [id])
   missedMeeting  MissedMeeting @relation("MissedMeetingPenalties", fields: [missedMeetingId], references: [id])
   missedMeetingId Int
@@ -102,16 +102,16 @@ enum TransactionStatus {
 
 model User {
   id            Int      @id @default(autoincrement())
-  name          String?  @default("Anonymous")
+  name          String?  @default("Anonymous") @index // Frequently used in queries
   email         String   @unique
   image         String?
-  device_token  String
-  device_token2 String
+  device_token  String   
+  device_token2 String   @index
   interests     Interests?
   age           Int?     
   sex           Sex?     
   bio           String?
-  language      String?
+  language      String?   // Frequently used in queries
   relationship  String?
   star_sign     String?
   pets          String?
@@ -119,9 +119,9 @@ model User {
   smoking       YesNo?
   busy_status   Boolean  @default(false)
   ac_delete     Boolean  @default(false)
-  created_at    DateTime @default(now())
+  created_at    DateTime @default(now()) @index
   updated_at    DateTime @updatedAt
-  wallet        Int      @default(0)
+  wallet        Int      @default(0) 
   verified      Boolean  @default(false)
 
 
@@ -162,15 +162,15 @@ enum Mode {
 
 model Transaction {
   id             Int      @id @default(autoincrement())
-  userId         Int
-  listenerId     Int
+  userId         Int      @index
+  listenerId     Int      @index
   amount         Float //shared by user
   listenerShare  Float
   appShare       Float
-  mode           Mode
+  mode           Mode     @index // Frequently used in queries
   duration       Int  
-  status         TransactionStatus   @default(PENDING) // PENDING, SUCCESS, FAILED
-  created_at     DateTime @default(now())
+  status         TransactionStatus   @default(PENDING) @index // PENDING, SUCCESS, FAILED
+  created_at     DateTime @default(now()) 
   updated_at     DateTime @updatedAt
 
   user           User     @relation("UserTransactions", fields: [userId], references: [id], onDelete:NoAction)
@@ -179,10 +179,10 @@ model Transaction {
 
 model MissedCall {
   id          Int      @id @default(autoincrement())
-  userId      Int
-  listenerId  Int
-  mode        Mode
-  createdAt   DateTime @default(now())
+  userId      Int      @index
+  listenerId  Int      @index
+  mode        Mode     
+  createdAt   DateTime @default(now()) @index
 
   user        User     @relation(fields: [userId], references: [id])
   listener    Listener @relation(fields: [listenerId], references: [id])
@@ -190,13 +190,13 @@ model MissedCall {
 
 model Deposit {
   id             Int      @id @default(autoincrement())
-  userId         Int
+  userId         Int      @index
   amount         Float // shared by user
   orderId        String // shared by frontend //UPDATE random
   signatureId    String // shared by frontend
   mode           string @default("RECHARGE") // shared by frontend
-  status         TransactionStatus   @default(PENDING) // PENDING, SUCCESS, FAILED
-  created_at     DateTime @default(now())
+  status         TransactionStatus   @default(PENDING) @index // PENDING, SUCCESS, FAILED
+  created_at     DateTime @default(now()) @index
   updated_at     DateTime @updatedAt
   user           User     @relation("UserDeposit", fields: [userId], references: [id], onDelete: NoAction)
 }
@@ -214,10 +214,10 @@ enum adminApprove {
 
 model Withdraw {
   id                    Int      @id @default(autoincrement())
-  listenerId            Int
+  listenerId            Int      @index
   amount                Float // shared by user
   mode                  string @default("WITHDRAW") // shared by frontend
-  status                TransactionStatus   @default(PENDING) // PENDING, SUCCESS, FAILED
+  status                TransactionStatus   @default(PENDING) @index // PENDING, SUCCESS, FAILED
  
  // Payment mode details
   paymentMode           PaymentMode      // Either UPI or BANK
@@ -225,18 +225,18 @@ model Withdraw {
   account_number        Int?          // Bank account number
   ifsc_code             Int?          // Bank IFSC code
           
-  requestApproveAdmin   adminApprove @default(WAITING)
-  created_at            DateTime @default(now())
+  requestApproveAdmin   adminApprove @default(WAITING) 
+  created_at            DateTime @default(now()) 
   listener              Listener @relation("ListenerWithdraw", fields: [listenerId], references: [id], onDelete: NoAction)
 }
 
 model LeaveRequest {
   id          Int      @id @default(autoincrement())
-  listenerId  Int
+  listenerId  Int      @index
   days        Int
   reason      String
   status      LeaveStatus @default(PENDING)
-  createdAt   DateTime @default(now())
+  createdAt   DateTime @default(now()) @index
   listener    Listener @relation(fields: [listenerId], references: [id])
 }
 
@@ -248,11 +248,11 @@ enum LeaveStatus {
 
 model ConnectionRequest {
   id                Int      @id @default(autoincrement())
-  userId            Int
-  listenerId        Int
-  communicationType Mode
-  status            String   @default("PENDING")
-  createdAt         DateTime @default(now())
+  userId            Int      @index
+  listenerId        Int      @index
+  communicationType Mode    
+  status            String   @default("PENDING") 
+  createdAt         DateTime @default(now()) 
 
   user              User     @relation(fields: [userId], references: [id])
   listener          Listener @relation(fields: [listenerId], references: [id])
@@ -268,25 +268,46 @@ enum NotificationType {
 
 model GeneralNotification {
   id          Int      @id @default(autoincrement())
-  title       String
+  title       String   
   message     String
   link        String?
   image_URL   String
-  created_at  DateTime @default(now())
-  type        NotificationType
+  created_at  DateTime @default(now()) @index
+  type        NotificationType 
 }
 
 model SpecificNotification {
   id          Int      @id @default(autoincrement())
-  title       String
+  title       String   
   message     String
   link        String?
   image_URL   String
-  created_at  DateTime @default(now())
-  type        NotificationType
+  created_at  DateTime @default(now()) @index
+  type        NotificationType 
   userId      Int?
-  listenerId  Int?
+  listenerId  Int? 
   user        User?    @relation(fields: [userId], references: [id])
   listener    Listener? @relation(fields: [listenerId], references: [id])
 }
 
+model MessageListener {
+  id          Int      @id @default(autoincrement())
+  senderId    Int      // User ID
+  receiverId  Int      // Listener ID
+  message     String
+  created_at  DateTime @default(now())
+
+  user        User     @relation(fields: [senderId], references: [id])
+  listener    Listener @relation(fields: [receiverId], references: [id])
+}
+
+model MessageUser {
+  id          Int      @id @default(autoincrement())
+  senderId    Int      // Listener ID
+  receiverId  Int      // User ID
+  message     String
+  created_at  DateTime @default(now())
+
+  listener    Listener @relation(fields: [senderId], references: [id])
+  user        User     @relation(fields: [receiverId], references: [id])
+}

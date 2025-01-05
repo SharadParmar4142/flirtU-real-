@@ -1,38 +1,18 @@
-Dashboard controller and routes.
-include images(optional)
-FCM-> 1. All the notifications from the server(APP side)
-      2. Seperate notifications based on user and listener.
-      3. Seperate notifications to users based on id and same for listener
-     
-     
-      4. Inbox (on hold waiting for details) notification but store in database
-            1.
-            {title, body, link(optional), image(mandatory), created_at(schema)
+Register the user, send a inbox notification that a user is registered to all the listener and store it 
+general notification data.
 
-                  type(either user or listener or all)            
-            }
+Inbox notification::
+User to listener and listener to user,
+so when the listener is online and busy then inbox message from user that he wants to connect with the listener
+and listener can reply with the appropriate.
 
-            {
-                  title, body, link(optional), image(mandatory), created_at(schema)
+2 routes one from user and another from listener
+Create a new schema {
+      userId,
+      listenerId
+      message,
+      created_at
+}
 
-                  type(either user or listener along with id)            
-            }
+2 new routes to fetch the notification that were sent to the user/listener 
 
-            2. Similar to the above just different route
-
-
--------------------------------
-
-      New user and listener based on id of the other, if the listener is busy and user wants to connect then
-      they will send a notification to the listener, and listener will send a notification about his status it's 
-      not mandatory.
-      {
-            
-            body, 
-            created_at(schema)
-            id of the other and of itself
-      }
-
-If the admin sends an inbox message then user and listener will be able to fetch that using "get request", and get all the 
-inbox that were sent from the admin side. Search if the inbox has for user that user id and all
-2. Two New routes one on user and other in listner
